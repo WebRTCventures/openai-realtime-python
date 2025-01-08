@@ -196,7 +196,8 @@ class RealtimeKitAgent:
 
             asyncio.create_task(self.rtc_to_model()).add_done_callback(log_exception)
             asyncio.create_task(self.model_to_rtc()).add_done_callback(log_exception)
-            asyncio.create_task(self.avatar_to_rtc()).add_done_callback(log_exception)
+            asyncio.create_task(self.avatar_to_rtc_audio()).add_done_callback(log_exception)
+            asyncio.create_task(self.avatar_to_rtc_video()).add_done_callback(log_exception)
 
             asyncio.create_task(self._process_model_messages()).add_done_callback(
                 log_exception
@@ -244,6 +245,7 @@ class RealtimeKitAgent:
                 # Get audio frame from the model output
                 frame = await self.audio_queue.get()
 
+                # Send audio to simli
                 await self.simli_connection.send_audio(frame)
 
                 # Write PCM data if enabled
@@ -254,26 +256,28 @@ class RealtimeKitAgent:
             await pcm_writer.flush()
             raise  # Re-raise the cancelled exception to properly exit the task
 
-    async def avatar_to_rtc(self) -> None:
+    async def avatar_to_rtc_audio(self) -> None:
         # Initialize PCMWriter for sending the avatar
         pcm_writer = PCMWriter(prefix="avatar_to_rtc", write_pcm=self.write_pcm)
 
         try:
-            while True:
-                # Get audio fram from the simli client
-                audio_frame = await self.simli_connection.client.getNextAudioFrame()
-                try:
-                    interleaved_frame = audio_frame.to_ndarray()
-                    audio_bytes = interleaved_frame.tobytes()
+            async for audio_frame in self.simli_connection.get_audio_frames():
+                logger.debug(f"Received audio frame {audio_frame} - {audio_frame.format} - {audio_frame.sample_rate}")
+                np_array = audio_frame.to_ndarray()
+                logger.debug(f"nparray: shape {np_array.shape} len {len(np_array)} size {np_array.size} dtype {np_array.dtype}")
 
-                    await self.channel.push_audio_frame(audio_bytes)
+                array = np_array[0]
 
-                    await pcm_writer.write(audio_bytes)
-                except Exception as e:
-                    logger.error(f"No audio frame received from Simli client")
+                await self.channel.push_audio_frame(array)
+
+                await pcm_writer.write(array)
         except asyncio.CancelledError:
             await pcm_writer.flush()
             raise
+
+    async def avatar_to_rtc_video(self) -> None:
+        async for video_frame in self.simli_connection.get_video_frames():
+            pass
                 
     async def handle_funtion_call(self, message: ResponseFunctionCallArgumentsDone) -> None:
         function_call_response = await self.tools.execute_tool(message.name, message.arguments)

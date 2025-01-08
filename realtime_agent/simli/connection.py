@@ -2,7 +2,6 @@ import asyncio
 import logging
 import os
 from simli import SimliClient, SimliConfig
-from simli.renderers import FileRenderer
 
 from ..logger import setup_logger
 
@@ -22,7 +21,7 @@ class SimliConnection:
                 faceId=face_id,
                 syncAudio=True,
                 maxSessionLength=60,
-                maxIdleTime=10,
+                maxIdleTime=30,
             )
         )
 
@@ -34,3 +33,11 @@ class SimliConnection:
 
     async def send_audio(self, audio: bytes):
         await self.client.send(audio)
+
+    async def get_video_frames(self):
+        async for frame in self.client.getVideoStreamIterator():
+            yield frame
+
+    async def get_audio_frames(self):
+        async for frame in self.client.getAudioStreamIterator():
+            yield frame
