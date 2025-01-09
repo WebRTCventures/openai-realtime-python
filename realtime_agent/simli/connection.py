@@ -35,9 +35,9 @@ class SimliConnection:
         await self.client.send(audio)
 
     async def get_video_frames(self):
-        async for frame in self.client.getVideoStreamIterator():
+        async for frame in self.client.getVideoStreamIterator(targetFormat="yuva420p"):
             yield frame
 
     async def get_audio_frames(self):
-        async for frame in self.client.getAudioStreamIterator():
+        async for frame in self.client.getAudioStreamIterator(targetSampleRate=24000):
             yield frame

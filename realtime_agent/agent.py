@@ -263,13 +263,8 @@ class RealtimeKitAgent:
         try:
             async for audio_frame in self.simli_connection.get_audio_frames():
                 logger.debug(f"Received audio frame {audio_frame} - {audio_frame.format} - {audio_frame.sample_rate}")
-                np_array = audio_frame.to_ndarray()
-                logger.debug(f"nparray: shape {np_array.shape} len {len(np_array)} size {np_array.size} dtype {np_array.dtype}")
-
-                audio_data = np_array.tobytes()
-
-                await self.channel.push_audio_frame(audio_data)
-                await pcm_writer.write(audio_data)
+                await self.channel.push_audio_frame(audio_frame)
+                await pcm_writer.write(audio_frame.to_ndarray().tobytes())
         except asyncio.CancelledError:
             await pcm_writer.flush()
             raise

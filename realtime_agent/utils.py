@@ -4,7 +4,9 @@ import logging
 from datetime import datetime
 from agora_realtime_ai_api.rtc import Channel, RtcEngine, RtcOptions
 from agora.rtc.video_frame_sender import ExternalVideoFrame
+from agora.rtc.audio_pcm_data_sender import PcmAudioFrame
 from av.video.frame import VideoFrame
+from av.audio.frame import AudioFrame
 
 from .logger import setup_logger
 
@@ -75,7 +77,7 @@ class AvatarChannel(Channel):
             frame (VideoFrame): The video frame to be pushed.
         """
         video_frame = ExternalVideoFrame()
-        video_frame.buffer = frame.to_ndarray().tobytes()
+        video_frame.buffer = bytearray(frame.to_ndarray().tobytes())
         video_frame.type = 1
         video_frame.format = 1
         video_frame.stride = frame.width
@@ -84,12 +86,34 @@ class AvatarChannel(Channel):
         video_frame.crop_right = 0
         video_frame.crop_bottom = 0
         video_frame.rotation = 0
-        video_frame.timestamp = frame.pts
+        video_frame.timestamp = 0
 
         ret = self.video_frame_sender.send_video_frame(video_frame)
-        logger.debug(f"Pushed video frame: {ret}, video frame length: {len(frame)}")
+        logger.debug(f"Pushed video frame: {ret}")
         if ret < 0:
-            raise Exception(f"Failed to send video frame: {ret}, video frame length: {len(frame)}")
+            raise Exception(f"Failed to send video frame: {ret}")
+        
+    async def push_audio_frame(self, frame: AudioFrame) -> None:
+        """
+        Pushes an audio frame to the channel
+        
+        Parameters:
+            frame: The audio frame to push
+        """
+        frame_tobytes = frame.to_ndarray().tobytes()
+        audio_frame = PcmAudioFrame()
+        audio_frame.data = bytearray(frame_tobytes)
+        audio_frame.timestamp = 0
+        audio_frame.bytes_per_sample = 2
+        audio_frame.number_of_channels = self.options.channels
+        audio_frame.sample_rate = self.options.sample_rate
+        audio_frame.samples_per_channel = int(
+            len(frame_tobytes) / audio_frame.bytes_per_sample / audio_frame.number_of_channels
+        )
+        ret = self.audio_pcm_data_sender.send_audio_pcm_data(audio_frame)
+        logger.debug(f"Pushed audio frame: {ret}, audio frame length: {len(frame_tobytes)}")
+        if ret < 0:
+            raise Exception(f"Failed to send audio frame: {ret}")
         
 class AvatarRtcEngine(RtcEngine):
     def create_channel(self, options: RtcOptions) -> AvatarChannel:
