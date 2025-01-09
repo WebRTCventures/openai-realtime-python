@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field, ValidationError
 
 from realtime_agent.realtime.tools_example import AgentTools
+from realtime_agent.utils import AvatarRtcEngine
 
 from .realtime.struct import PCM_CHANNELS, PCM_SAMPLE_RATE, ServerVADUpdateParams, Voices
 
@@ -74,7 +75,7 @@ def run_agent_in_process(
     signal.signal(signal.SIGTERM, handle_agent_proc_signal)  # Forward SIGTERM
     asyncio.run(
         RealtimeKitAgent.setup_and_run_agent(
-            engine=RtcEngine(appid=engine_app_id, appcert=engine_app_cert),
+            engine=AvatarRtcEngine(appid=engine_app_id, appcert=engine_app_cert),
             options=RtcOptions(
                 channel_name=channel_name,
                 uid=uid,

@@ -17,7 +17,7 @@
             "module": "realtime_agent.main",
             "args": [
                 "agent",
-                "--channel_name", "test_channel"
+                "--channel_name", "testie"
             ],
             "cwd": "${workspaceFolder}"
         }

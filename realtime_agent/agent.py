@@ -15,7 +15,7 @@ from .realtime.struct import ErrorMessage, FunctionCallOutputItemParam, InputAud
 from .realtime.connection import RealtimeApiConnection
 from .simli.connection import SimliConnection
 from .tools import ClientToolCallResponse, ToolContext
-from .utils import PCMWriter
+from .utils import PCMWriter, AvatarChannel, AvatarRtcEngine
 
 # Set up the logger with color and timestamp support
 logger = setup_logger(name=__name__, log_level=logging.INFO)
@@ -26,7 +26,7 @@ def _monitor_queue_size(queue: asyncio.Queue, queue_name: str, threshold: int = 
         logger.warning(f"Queue {queue_name} size exceeded {threshold}: current size {queue_size}")
 
 
-async def wait_for_remote_user(channel: Channel) -> int:
+async def wait_for_remote_user(channel: AvatarChannel) -> int:
     remote_users = list(channel.remote_users.keys())
     if len(remote_users) > 0:
         return remote_users[0]
@@ -55,8 +55,8 @@ class InferenceConfig:
 
 
 class RealtimeKitAgent:
-    engine: RtcEngine
-    channel: Channel
+    engine: AvatarRtcEngine
+    channel: AvatarChannel
     connection: RealtimeApiConnection
     audio_queue: asyncio.Queue[bytes] = asyncio.Queue()
     simli_connection: SimliConnection
@@ -75,7 +75,7 @@ class RealtimeKitAgent:
     async def setup_and_run_agent(
         cls,
         *,
-        engine: RtcEngine,
+        engine: AvatarRtcEngine,
         options: RtcOptions,
         inference_config: InferenceConfig,
         tools: ToolContext | None,
@@ -141,7 +141,7 @@ class RealtimeKitAgent:
         *,
         connection: RealtimeApiConnection,
         tools: ToolContext | None,
-        channel: Channel,
+        channel: AvatarChannel,
         simli_connection: SimliConnection
     ) -> None:
         self.connection = connection
@@ -266,18 +266,18 @@ class RealtimeKitAgent:
                 np_array = audio_frame.to_ndarray()
                 logger.debug(f"nparray: shape {np_array.shape} len {len(np_array)} size {np_array.size} dtype {np_array.dtype}")
 
-                array = np_array[0]
+                audio_data = np_array.tobytes()
 
-                await self.channel.push_audio_frame(array)
-
-                await pcm_writer.write(array)
+                await self.channel.push_audio_frame(audio_data)
+                await pcm_writer.write(audio_data)
         except asyncio.CancelledError:
             await pcm_writer.flush()
             raise
 
     async def avatar_to_rtc_video(self) -> None:
         async for video_frame in self.simli_connection.get_video_frames():
-            pass
+            logger.debug(f"Received video frame {video_frame} - {video_frame.format}")
+            await self.channel.push_video_frame(video_frame)
                 
     async def handle_funtion_call(self, message: ResponseFunctionCallArgumentsDone) -> None:
         function_call_response = await self.tools.execute_tool(message.name, message.arguments)
