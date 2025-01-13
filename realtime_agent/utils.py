@@ -1,10 +1,13 @@
 import asyncio
 import functools
 import logging
+import os
 from datetime import datetime
 from agora_realtime_ai_api.rtc import Channel, RtcEngine, RtcOptions
-from agora.rtc.video_frame_sender import ExternalVideoFrame
+from agora.rtc.video_encoded_image_sender import EncodedVideoFrameInfo
 from agora.rtc.audio_pcm_data_sender import PcmAudioFrame
+from agora.rtc.agora_base import AudioScenarioType
+from agora.rtc.agora_service import AgoraService, AgoraServiceConfig, SenderOptions
 from av.video.frame import VideoFrame
 from av.audio.frame import AudioFrame
 
@@ -61,10 +64,12 @@ class AvatarChannel(Channel):
     def __init__(self, rtc: "RtcEngine", options: RtcOptions) -> None:
         super().__init__(rtc, options)
         self.video_frame_sender = (
-            self.media_node_factory.create_video_frame_sender()
+            self.media_node_factory.create_video_encoded_image_sender()
         )
-        self.video_track = self.rtc.agora_service.create_custom_video_track_frame(
-            self.video_frame_sender
+        self.sender_options = SenderOptions(0, 2, 640)
+        self.video_track = self.rtc.agora_service.create_custom_video_track_encoded(
+            self.video_frame_sender,
+            self.sender_options
         )
         self.video_track.set_enabled(1)
         self.local_user.publish_video(self.video_track)
@@ -76,22 +81,23 @@ class AvatarChannel(Channel):
         Args:
             frame (VideoFrame): The video frame to be pushed.
         """
-        video_frame = ExternalVideoFrame()
-        video_frame.buffer = bytearray(frame.to_ndarray().tobytes())
-        video_frame.type = 1
-        video_frame.format = 1
-        video_frame.stride = frame.width
-        video_frame.crop_left = 0
-        video_frame.crop_top = 0
-        video_frame.crop_right = 0
-        video_frame.crop_bottom = 0
-        video_frame.rotation = 0
-        video_frame.timestamp = 0
-
-        ret = self.video_frame_sender.send_video_frame(video_frame)
-        logger.debug(f"Pushed video frame: {ret}")
-        if ret < 0:
-            raise Exception(f"Failed to send video frame: {ret}")
+        is_keyframe = frame.key_frame
+        encoded_video_frame_info = EncodedVideoFrameInfo()
+        encoded_video_frame_info.codec_type = 2
+        encoded_video_frame_info.width = frame.width
+        encoded_video_frame_info.height = frame.height
+        encoded_video_frame_info.frames_per_second = 25
+        if is_keyframe:
+            encoded_video_frame_info.frame_type = 3
+        else:
+            encoded_video_frame_info.frame_type = 4
+        for plane in frame.planes:
+            ret = self.video_frame_sender.send_encoded_video_image(
+                plane.buffer_ptr, plane.buffer_size, encoded_video_frame_info
+            )
+            logger.info(f"Pushed video frame: {ret}")
+            if ret < 0:
+                raise Exception(f"Failed to send video frame: {ret}")
         
     async def push_audio_frame(self, frame: AudioFrame) -> None:
         """
@@ -116,5 +122,27 @@ class AvatarChannel(Channel):
             raise Exception(f"Failed to send audio frame: {ret}")
         
 class AvatarRtcEngine(RtcEngine):
+    def __init__(self, appid: str, appcert: str):
+        self.appid = appid
+        self.appcert = appcert
+
+        if not appid:
+            raise Exception("App ID is required)")
+
+        config = AgoraServiceConfig()
+        config.enable_video = 1
+        config.audio_scenario = AudioScenarioType.AUDIO_SCENARIO_CHORUS
+        config.appid = appid
+        config.log_path = os.path.join(
+            os.path.dirname(
+                os.path.dirname(
+                    os.path.dirname(os.path.join(os.path.abspath(__file__)))
+                )
+            ),
+            "agorasdk.log",
+        )
+        self.agora_service = AgoraService()
+        self.agora_service.initialize(config)
+
     def create_channel(self, options: RtcOptions) -> AvatarChannel:
         return AvatarChannel(self, options)
