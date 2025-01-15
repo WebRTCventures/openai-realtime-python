@@ -42,7 +42,7 @@ class SimliConnection:
         await self.client.send(audio)
 
     async def get_video_frames(self):
-        async for frame in self.client.getVideoStreamIterator():
+        async for frame in self.client.getVideoStreamIterator(targetFormat='yuva420p'):
             try:
                 for packet in self.video_stream.encode(frame):
                     self.container.mux(packet)

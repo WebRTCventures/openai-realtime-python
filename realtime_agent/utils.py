@@ -4,7 +4,7 @@ import logging
 import os
 from datetime import datetime
 from agora_realtime_ai_api.rtc import Channel, RtcEngine, RtcOptions
-from agora.rtc.video_encoded_image_sender import EncodedVideoFrameInfo
+from agora.rtc.video_frame_sender import ExternalVideoFrame
 from agora.rtc.audio_pcm_data_sender import PcmAudioFrame
 from agora.rtc.agora_base import AudioScenarioType
 from agora.rtc.agora_service import AgoraService, AgoraServiceConfig, SenderOptions
@@ -64,12 +64,10 @@ class AvatarChannel(Channel):
     def __init__(self, rtc: "RtcEngine", options: RtcOptions) -> None:
         super().__init__(rtc, options)
         self.video_frame_sender = (
-            self.media_node_factory.create_video_encoded_image_sender()
+            self.media_node_factory.create_video_frame_sender()
         )
-        self.sender_options = SenderOptions(0, 2, 640)
-        self.video_track = self.rtc.agora_service.create_custom_video_track_encoded(
-            self.video_frame_sender,
-            self.sender_options
+        self.video_track = self.rtc.agora_service.create_custom_video_track_frame(
+            self.video_frame_sender
         )
         self.video_track.set_enabled(1)
         self.local_user.publish_video(self.video_track)
@@ -81,23 +79,20 @@ class AvatarChannel(Channel):
         Args:
             frame (VideoFrame): The video frame to be pushed.
         """
-        is_keyframe = frame.key_frame
-        encoded_video_frame_info = EncodedVideoFrameInfo()
-        encoded_video_frame_info.codec_type = 2
-        encoded_video_frame_info.width = frame.width
-        encoded_video_frame_info.height = frame.height
-        encoded_video_frame_info.frames_per_second = 25
-        if is_keyframe:
-            encoded_video_frame_info.frame_type = 3
-        else:
-            encoded_video_frame_info.frame_type = 4
-        for plane in frame.planes:
-            ret = self.video_frame_sender.send_encoded_video_image(
-                plane.buffer_ptr, plane.buffer_size, encoded_video_frame_info
-            )
-            logger.info(f"Pushed video frame: {ret}")
-            if ret < 0:
-                raise Exception(f"Failed to send video frame: {ret}")
+        external_video_frame = ExternalVideoFrame()
+        external_video_frame.buffer = bytearray(frame.to_ndarray().tobytes())
+        external_video_frame.type = 1
+        external_video_frame.format = 1
+        external_video_frame.stride = frame.width
+        external_video_frame.height = frame.height
+        external_video_frame.timestamp = frame.pts
+        external_video_frame.metadata = "avatar video frame"
+
+        ret = self.video_frame_sender.send_video_frame(external_video_frame)
+
+        logger.debug(f"Pushed video frame: {ret}")
+        if ret < 0:
+            raise Exception(f"Failed to send video frame: {ret}")
         
     async def push_audio_frame(self, frame: AudioFrame) -> None:
         """
@@ -112,10 +107,8 @@ class AvatarChannel(Channel):
         audio_frame.timestamp = 0
         audio_frame.bytes_per_sample = 2
         audio_frame.number_of_channels = self.options.channels
-        audio_frame.sample_rate = self.options.sample_rate
-        audio_frame.samples_per_channel = int(
-            len(frame_tobytes) / audio_frame.bytes_per_sample / audio_frame.number_of_channels
-        )
+        audio_frame.sample_rate = frame.sample_rate
+        audio_frame.samples_per_channel = frame.samples
         ret = self.audio_pcm_data_sender.send_audio_pcm_data(audio_frame)
         logger.debug(f"Pushed audio frame: {ret}, audio frame length: {len(frame_tobytes)}")
         if ret < 0:
