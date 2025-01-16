@@ -46,9 +46,9 @@ class SimliConnection:
             try:
                 for packet in self.video_stream.encode(frame):
                     self.container.mux(packet)
+                yield frame
             except:
                 continue
-            yield frame
 
     async def get_audio_frames(self):
         async for frame in self.client.getAudioStreamIterator(targetSampleRate=24000):

@@ -61,7 +61,7 @@ class PCMWriter:
         self.buffer.clear()
 
 class AvatarChannel(Channel):
-    def __init__(self, rtc: "RtcEngine", options: RtcOptions) -> None:
+    def __init__(self, rtc: "AvatarRtcEngine", options: RtcOptions) -> None:
         super().__init__(rtc, options)
         self.video_frame_sender = (
             self.media_node_factory.create_video_frame_sender()
@@ -79,13 +79,18 @@ class AvatarChannel(Channel):
         Args:
             frame (VideoFrame): The video frame to be pushed.
         """
+        np_array = frame.to_ndarray()
+        byte_data = bytearray(np_array.tobytes())
+
+        logger.debug(f"Pushing video frame with shape: {np_array.shape}")
+
         external_video_frame = ExternalVideoFrame()
-        external_video_frame.buffer = bytearray(frame.to_ndarray().tobytes())
+        external_video_frame.buffer = byte_data
         external_video_frame.type = 1
         external_video_frame.format = 1
         external_video_frame.stride = frame.width
         external_video_frame.height = frame.height
-        external_video_frame.timestamp = frame.pts
+        external_video_frame.timestamp = 0
         external_video_frame.metadata = "avatar video frame"
 
         ret = self.video_frame_sender.send_video_frame(external_video_frame)
@@ -101,16 +106,20 @@ class AvatarChannel(Channel):
         Parameters:
             frame: The audio frame to push
         """
-        frame_tobytes = frame.to_ndarray().tobytes()
+        pcm_array = frame.to_ndarray()
+        pcm_data = bytearray(pcm_array.tobytes())
+
+        logger.debug(f"Pushing audio frame with shape: {pcm_array.shape}")
+
         audio_frame = PcmAudioFrame()
-        audio_frame.data = bytearray(frame_tobytes)
+        audio_frame.data = pcm_data
         audio_frame.timestamp = 0
         audio_frame.bytes_per_sample = 2
-        audio_frame.number_of_channels = self.options.channels
-        audio_frame.sample_rate = frame.sample_rate
-        audio_frame.samples_per_channel = frame.samples
+        audio_frame.number_of_channels = 1
+        audio_frame.sample_rate = 24000
+        audio_frame.samples_per_channel = pcm_array.size
         ret = self.audio_pcm_data_sender.send_audio_pcm_data(audio_frame)
-        logger.debug(f"Pushed audio frame: {ret}, audio frame length: {len(frame_tobytes)}")
+        logger.debug(f"Pushed audio frame: {ret}")
         if ret < 0:
             raise Exception(f"Failed to send audio frame: {ret}")
         
@@ -123,14 +132,11 @@ class AvatarRtcEngine(RtcEngine):
             raise Exception("App ID is required)")
 
         config = AgoraServiceConfig()
-        config.enable_video = 1
         config.audio_scenario = AudioScenarioType.AUDIO_SCENARIO_CHORUS
         config.appid = appid
         config.log_path = os.path.join(
             os.path.dirname(
-                os.path.dirname(
-                    os.path.dirname(os.path.join(os.path.abspath(__file__)))
-                )
+                os.path.dirname(os.path.join(os.path.abspath(__file__)))
             ),
             "agorasdk.log",
         )
