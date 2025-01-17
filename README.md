@@ -22,6 +22,11 @@ Before running the demo, ensure you have the following installed and configured:
   - [Login to OpenAI](https://platform.openai.com/signup)
   - Go to Dashboard and [obtain your API key](https://platform.openai.com/api-keys).
 
+- Simli account:
+
+   - [Sign up to Simli](https://app.simli.com/sign-up-in) using your Google account.
+   - Get your API key from "API keys" at the left side of your screen.
+
 - Additional Packages:
 
   - On macOS:
