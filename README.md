@@ -2,6 +2,10 @@
 
 This project demonstrates how to deliver ultra-low latency access to OpenAI with exceptional audio quality using Agora's SD-RTN and OpenAI's Realtime API. By integrating Agora's SDK with OpenAI's Realtime API, it ensures seamless performance and minimal delay across the globe.
 
+## Avatar
+
+This fork integrates with [Simli](https://www.simli.com/) to support virtual avatars. 
+
 ## Prerequisites
 
 Before running the demo, ensure you have the following installed and configured:
