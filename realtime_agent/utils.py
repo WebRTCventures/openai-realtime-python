@@ -107,7 +107,8 @@ class AvatarChannel(Channel):
             frame: The audio frame to push
         """
         pcm_array = frame.to_ndarray()
-        pcm_data = bytearray(pcm_array.tobytes())
+        pcm_bytes = pcm_array.tobytes()
+        pcm_data = bytearray(pcm_bytes)
 
         logger.debug(f"Pushing audio frame with shape: {pcm_array.shape}")
 
@@ -116,8 +117,10 @@ class AvatarChannel(Channel):
         audio_frame.timestamp = 0
         audio_frame.bytes_per_sample = 2
         audio_frame.number_of_channels = 1
-        audio_frame.sample_rate = 24000
-        audio_frame.samples_per_channel = pcm_array.size
+        audio_frame.sample_rate = 96000
+        audio_frame.samples_per_channel = int(
+            len(pcm_bytes) / audio_frame.bytes_per_sample / audio_frame.number_of_channels
+        )
         ret = self.audio_pcm_data_sender.send_audio_pcm_data(audio_frame)
         logger.debug(f"Pushed audio frame: {ret}")
         if ret < 0:

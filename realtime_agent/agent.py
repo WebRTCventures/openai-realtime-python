@@ -262,7 +262,6 @@ class RealtimeKitAgent:
 
         try:
             async for audio_frame in self.simli_connection.get_audio_frames():
-                logger.debug(f"Received audio frame {audio_frame} - {audio_frame.format} - {audio_frame.sample_rate}")
                 await self.channel.push_audio_frame(audio_frame)
                 await pcm_writer.write(audio_frame.to_ndarray().tobytes())
         except asyncio.CancelledError:
@@ -271,7 +270,6 @@ class RealtimeKitAgent:
 
     async def avatar_to_rtc_video(self) -> None:
         async for video_frame in self.simli_connection.get_video_frames():
-            logger.debug(f"Received video frame {video_frame} - {video_frame.format}")
             await self.channel.push_video_frame(video_frame)
                 
     async def handle_funtion_call(self, message: ResponseFunctionCallArgumentsDone) -> None:
