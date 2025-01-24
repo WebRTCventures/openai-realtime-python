@@ -91,7 +91,7 @@ class AvatarChannel(Channel):
         external_video_frame.stride = frame.width
         external_video_frame.height = frame.height
         external_video_frame.timestamp = 0
-        external_video_frame.metadata = "avatar video frame"
+        external_video_frame.metadata = bytearray(b"avatar video frame")
 
         ret = self.video_frame_sender.send_video_frame(external_video_frame)
 
@@ -123,8 +123,6 @@ class AvatarChannel(Channel):
         )
         ret = self.audio_pcm_data_sender.send_audio_pcm_data(audio_frame)
         logger.debug(f"Pushed audio frame: {ret}")
-        if ret < 0:
-            raise Exception(f"Failed to send audio frame: {ret}")
         
 class AvatarRtcEngine(RtcEngine):
     def __init__(self, appid: str, appcert: str):
